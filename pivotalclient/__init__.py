@@ -208,15 +208,16 @@ class PivotalClient:
         results = self._post(uri, story_dict)
         return results
 
-    def create_stories_from_integration_stories(self):
+    def create_stories_from_integration_stories(self, template=None):
 
-        def _desc_for_zendesk_ticket(base_url, ticket_id, requester):
-            tmpl = '[ZenDesk Ticket #{}]({}/tickets/{}) filed by {}. (Created by taylor@elysium\'s crontab.)'
+        def _desc_for_zendesk_ticket(base_url, ticket_id, requester, template):
+            tmpl = '[ZenDesk Ticket #{ticket_id}]({base_url}/tickets/{ticket_id}) filed by {requester}.'
+            if template:
+                tmpl = template
             return tmpl.format(
-                ticket_id,
-                base_url,
-                ticket_id,
-                requester
+                ticket_id=ticket_id,
+                base_url=base_url,
+                requester=requester
             )
 
         self._verify_project_id_exists()
@@ -228,7 +229,7 @@ class PivotalClient:
             es_requester = es.pop('external_requester')
             int_base_url = integrations[es['integration_id']]['base_url']
             if integrations[es['integration_id']]['kind'] == 'zendesk_integration':
-                es['description'] = _desc_for_zendesk_ticket(int_base_url, es['external_id'], es_requester)
+                es['description'] = _desc_for_zendesk_ticket(int_base_url, es['external_id'], es_requester, template)
                 es['name'] = 'ZD Ticket: {}'.format(es['name'])
             results.append(self.create_story(es))
         return results
