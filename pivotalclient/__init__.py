@@ -86,6 +86,18 @@ class PivotalClient:
         if not resp or not 200 <= resp.status_code < 300:
             raise ApiError('GET {} {}'.format(endpoint, resp.status_code))
         return resp.json()
+
+    def _post(self, endpoint, json):
+        """Issue a POST to Pivotal Tracker.
+        
+        endpoint: a URL to POST
+        json: the jsonifiable (e.g. dict or list) data to send to Pivotal
+        """
+        headers = self.auth_headers
+        resp = requests.post(endpoint, json=json, headers=headers)
+        if not resp or not 200 <= resp.status_code < 300:
+            raise ApiError('GET {} {}'.format(endpoint, resp.status_code))
+        return resp.json()
     
     def _get_all(self, endpoint, querystring=None):
         DEFAULT_PAGE_LIMIT = 1000
@@ -188,4 +200,35 @@ class PivotalClient:
             integration_stories = self.get_integration_stories(integration.get('id'))
             results.extend(integration_stories)
 
+        return results
+
+    def create_story(self, story_dict):
+        self._verify_project_id_exists()
+        uri = self.api_stories
+        results = self._post(uri, story_dict)
+        return results
+
+    def create_stories_from_integration_stories(self):
+
+        def _desc_for_zendesk_ticket(base_url, ticket_id, requester):
+            tmpl = '[ZenDesk Ticket #{}]({}/tickets/{}) filed by {}. (Created by taylor@elysium\'s crontab.)'
+            return tmpl.format(
+                ticket_id,
+                base_url,
+                ticket_id,
+                requester
+            )
+
+        self._verify_project_id_exists()
+        external_stories = self.get_all_integration_stories()
+        integrations = {i.get('id'): i for i in self.get_integrations()}
+        results = []
+        for es in external_stories:
+            es.pop('state')
+            es_requester = es.pop('external_requester')
+            int_base_url = integrations[es['integration_id']]['base_url']
+            if integrations[es['integration_id']]['kind'] == 'zendesk_integration':
+                es['description'] = _desc_for_zendesk_ticket(int_base_url, es['external_id'], es_requester)
+                es['name'] = 'ZD Ticket: {}'.format(es['name'])
+            results.append(self.create_story(es))
         return results
