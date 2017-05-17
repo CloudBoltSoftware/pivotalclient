@@ -2,6 +2,7 @@ import requests
 import logging
 import inspect
 import sys
+from copy import deepcopy
 
 DEBUG = False
 
@@ -208,28 +209,62 @@ class PivotalClient:
         results = self._post(uri, story_dict)
         return results
 
-    def create_stories_from_integration_stories(self, template=None):
+    @staticmethod
+    def _desc_for_external_story(context, template):
+        tmpl = '[External Story #{external_story[external_id]}]'
+        tmpl += '({integration[base_url]}/tickets/{external_story[external_id]})'
+        tmpl += 'filed by {external_story[external_requester]}.'
+        if template:
+            tmpl = template
+        return tmpl.format(**context)
 
-        def _desc_for_zendesk_ticket(base_url, ticket_id, requester, template):
-            tmpl = '[ZenDesk Ticket #{ticket_id}]({base_url}/tickets/{ticket_id}) filed by {requester}.'
-            if template:
-                tmpl = template
-            return tmpl.format(
-                ticket_id=ticket_id,
-                base_url=base_url,
-                requester=requester
-            )
+    @staticmethod
+    def _name_for_external_story(context, template):
+        tmpl = 'External Story: {external_story[name]}'
+        if template:
+            tmpl = template
+        return tmpl.format(**context)
 
+    def create_stories_from_integration_stories(self, desc_template=None, name_template=None):
+        """ For each external integration story (e.g. a ZenDesk ticket), create a story.
+        
+        Notes On Template Context:
+            We use string.format() on a **dict of dicts, so your templates may use dictionary-style accessors in the
+            fields, such as "Ticket ID: {external_story[external_id]} 
+        
+        Args:
+            desc_template: a .format() template used to populate story description. Context available described below.
+            name_template: a .format() template used to populate story name. Context available described below.
+        
+        Context Available:
+            external_story: see https://www.pivotaltracker.com/help/api/rest/v5#external_story_resource
+            integration: see https://www.pivotaltracker.com/help/api/rest/v5#integration_resource
+                (note: this may actually be an instance of a zendesk_integration, bugzilla_integration, etc.)
+            nl: '\n', a linebreak.
+        """
         self._verify_project_id_exists()
         external_stories = self.get_all_integration_stories()
         integrations = {i.get('id'): i for i in self.get_integrations()}
         results = []
         for es in external_stories:
-            es.pop('state')
-            es_requester = es.pop('external_requester')
-            int_base_url = integrations[es['integration_id']]['base_url']
-            if integrations[es['integration_id']]['kind'] == 'zendesk_integration':
-                es['description'] = _desc_for_zendesk_ticket(int_base_url, es['external_id'], es_requester, template)
-                es['name'] = 'ZD Ticket: {}'.format(es['name'])
-            results.append(self.create_story(es))
+            wrapped_es = deepcopy(es)
+
+            context = {
+                'external_story': es,
+                'integration': integrations[es['integration_id']],
+                'nl': '\n',
+            }
+
+            story_name = PivotalClient._name_for_external_story(context, name_template)
+            wrapped_es['name'] = story_name
+
+            story_desc = PivotalClient._desc_for_external_story(context, desc_template)
+            wrapped_es['description'] = story_desc
+
+            # Remove fields we don't need/want.
+            wrapped_es.pop('state')
+            wrapped_es.pop('external_requester')
+            wrapped_es.pop('requested_by_id')
+
+            results.append((es, self.create_story(wrapped_es)))
         return results
