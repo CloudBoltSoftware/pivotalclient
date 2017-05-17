@@ -73,8 +73,9 @@ class PivotalClient:
     def _get(self, endpoint, querystring=None, with_envelope=False):
         """Issue a GET to Pivotal Tracker.
 
-        endpoint: a URL to GET
-        querystring: a dict of querystring parameters
+        Args:
+            endpoint: a URL to GET
+            querystring: a dict of querystring parameters
         """
         _querystring = querystring.copy() if querystring else {}
         if with_envelope:
@@ -91,15 +92,29 @@ class PivotalClient:
     def _post(self, endpoint, json):
         """Issue a POST to Pivotal Tracker.
         
-        endpoint: a URL to POST
-        json: the jsonifiable (e.g. dict or list) data to send to Pivotal
+        Args:
+            endpoint: a URL to POST
+            json: the jsonifiable (e.g. dict or list) data to send to Pivotal
         """
         headers = self.auth_headers
         resp = requests.post(endpoint, json=json, headers=headers)
         if not resp or not 200 <= resp.status_code < 300:
-            raise ApiError('GET {} {}'.format(endpoint, resp.status_code))
+            raise ApiError('POST {} {}'.format(endpoint, resp.status_code))
         return resp.json()
-    
+
+    def _put(self, endpoint, json):
+        """Issue a PUT to Pivotal Tracker.
+
+        Args:
+            endpoint: a URL to PUT
+            json: the jsonifiable (e.g. dict or list) data to send to Pivotal
+        """
+        headers = self.auth_headers
+        resp = requests.put(endpoint, json=json, headers=headers)
+        if not resp or not 200 <= resp.status_code < 300:
+            raise ApiError('PUT {} {}'.format(endpoint, resp.status_code))
+        return resp.json()
+
     def _get_all(self, endpoint, querystring=None):
         DEFAULT_PAGE_LIMIT = 1000
         _querystring = querystring.copy() if querystring else {}
@@ -122,7 +137,7 @@ class PivotalClient:
             # Increment the offset by the server-specified limit to get the next page.
             _querystring['offset'] += _querystring['limit']
         return results
-    
+
     def _verify_project_id_exists(self):
         if not self.project_id:
             caller_name = 'UNKNOWN'
@@ -140,6 +155,10 @@ class PivotalClient:
             except Exception as ex:
                 caller_name = inspect.stack()[1][3]
             raise ApiError('Account ID not set on API connection and is required by {}().'.format(caller_name))
+
+    def get_story(self, story_id):
+        self._verify_project_id_exists()
+        return self._get(self.api_story.format(story_id))
 
     def get_stories_by_filter(self, pivotal_filter):
         self._verify_project_id_exists()
@@ -207,6 +226,12 @@ class PivotalClient:
         self._verify_project_id_exists()
         uri = self.api_stories
         results = self._post(uri, story_dict)
+        return results
+
+    def update_story(self, story_id, fields):
+        self._verify_project_id_exists()
+        uri = self.api_story.format(story_id)
+        results = self._put(uri, fields)
         return results
 
     @staticmethod
