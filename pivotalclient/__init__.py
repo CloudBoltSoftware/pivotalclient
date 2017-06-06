@@ -287,9 +287,11 @@ class PivotalClient:
             wrapped_es['description'] = story_desc
 
             # Remove fields we don't need/want.
-            wrapped_es.pop('state')
-            wrapped_es.pop('external_requester')
-            wrapped_es.pop('requested_by_id')
+            wrapped_es.pop('state', None)
+            wrapped_es.pop('external_requester', None)
+            if 'requested_by_id' not in wrapped_es:
+                print("Missing requested_by_id on {} [{}]".format(story_name, es.get('external_id')))
+            wrapped_es.pop('requested_by_id', None)
 
             results.append((es, self.create_story(wrapped_es)))
         return results
