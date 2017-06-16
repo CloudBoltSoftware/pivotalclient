@@ -67,6 +67,7 @@ class PivotalClient:
             self.api_integrations = '{}/integrations'.format(self.api_project)
             self.api_integration = '{}/{}'.format(self.api_integrations, '{}')
             self.api_integration_stories = '{}/{}/stories'.format(self.api_integrations, '{}')
+            self.api_search = '{}/search'.format(self.api_project)
 
         self.api_filter = {'date_format': 'millis', 'filter': None}
 
@@ -91,7 +92,7 @@ class PivotalClient:
 
     def _post(self, endpoint, json):
         """Issue a POST to Pivotal Tracker.
-        
+
         Args:
             endpoint: a URL to POST
             json: the jsonifiable (e.g. dict or list) data to send to Pivotal
@@ -123,17 +124,17 @@ class PivotalClient:
         results = []
         while True:
             response = self._get(endpoint, _querystring, with_envelope=True)
-            
+
             # No results in this page? We're done!
             if len(response.get('data', [])) == 0:
                 break
 
             # Extend our results with the results provided.
             results.extend(response.get('data'))
-            
+
             # Update the page limit from the server-specified limit.
             _querystring['limit'] = response.get('pagination', {}).get('limit', DEFAULT_PAGE_LIMIT)
-            
+
             # Increment the offset by the server-specified limit to get the next page.
             _querystring['offset'] += _querystring['limit']
         return results
@@ -167,51 +168,51 @@ class PivotalClient:
         uri = self.api_stories
         results = self._get_all(uri, querystring=filt)
         return results
-    
+
     def get_stories_by_label(self, label):
         self._verify_project_id_exists()
         filt = {'filter': 'label:"{}"'.format(label)}
         uri = self.api_stories
         results = self._get_all(uri, querystring=filt)
         return results
-    
+
     def get_story_activities(self, story_id):
         self._verify_project_id_exists()
         uri = self.api_activity.format(story_id)
         results = self._get(uri)
         return results
-    
+
     def get_project_memberships(self):
         self._verify_project_id_exists()
         uri = self.api_project_memberships
         results = self._get(uri)
         return results
-    
+
     def get_account_memberships(self):
         self._verify_account_id_exists()
         uri = self.api_account_memberships
         results = self._get(uri)
         return results
-    
+
     def get_integrations(self):
         self._verify_project_id_exists()
         uri = self.api_integrations
         results = self._get(uri)
         return results
-    
+
     def get_integration(self, integration_id):
         self._verify_project_id_exists()
         uri = self.api_integration.format(integration_id)
         results = self._get(uri)
         return results
-    
+
     def get_integration_stories(self, integration_id):
         self._verify_project_id_exists()
         querystring = {'exclude_linked': 'true'}
         uri = self.api_integration_stories.format(integration_id)
         results = self._get(uri, querystring=querystring)
         return results
-    
+
     def get_all_integration_stories(self):
         results = []
 
@@ -252,15 +253,15 @@ class PivotalClient:
 
     def create_stories_from_integration_stories(self, desc_template=None, name_template=None):
         """ For each external integration story (e.g. a ZenDesk ticket), create a story.
-        
+
         Notes On Template Context:
             We use string.format() on a **dict of dicts, so your templates may use dictionary-style accessors in the
-            fields, such as "Ticket ID: {external_story[external_id]} 
-        
+            fields, such as "Ticket ID: {external_story[external_id]}
+
         Args:
             desc_template: a .format() template used to populate story description. Context available described below.
             name_template: a .format() template used to populate story name. Context available described below.
-        
+
         Context Available:
             external_story: see https://www.pivotaltracker.com/help/api/rest/v5#external_story_resource
             integration: see https://www.pivotaltracker.com/help/api/rest/v5#integration_resource
@@ -295,3 +296,11 @@ class PivotalClient:
 
             results.append((es, self.create_story(wrapped_es)))
         return results
+
+    def search(self, query=''):
+        uri = self.api_search
+        querystring = {
+            'project_id': self.project_id,
+            'query': query,
+        }
+        return self._get(uri, querystring=querystring)
