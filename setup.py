@@ -15,5 +15,6 @@ setup(
     license='MIT',
     long_description=open('README').read(),
     classifiers=[],
+    install_requires=['requests>=2.4.3'],
     py_modules=['pivotalclient'],
 )
